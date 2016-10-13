@@ -4,13 +4,16 @@
 
 MI0283QT9 lcd;  //MI0283QT9 Adapter v1
 bool touching = false;
+bool paused = false;
 
 uint16_t drawcolor[] = {
   RGB( 15, 15, 15), //bg
   RGB(255,  0, 0), // previous
   RGB(0, 255, 0), // play
   RGB(0, 0, 255), // next
-  RGB(255, 255, 255)
+  RGB(255, 255, 255), // white
+  RGB(130, 130, 130), // button bg
+  RGB(110, 110, 110), // button pressed bg
 };
 
 #define BG_COLOR (0)
@@ -18,6 +21,15 @@ uint16_t drawcolor[] = {
 #define GREEN (2)
 #define BLUE (3)
 #define WHITE (4)
+#define BUTTON_BG (5)
+#define BUTTON_PRESSED_BG (6)
+
+#define LCD_WIDTH (320)
+#define LCD_HEIGHT (240)
+#define BUTTON_HEIGHT (60)
+#define BUTTON_WIDTH (85)
+#define BUTTON_BORDER_RADIUS (8)
+#define BUTTON_HEIGHT_OFFSET (LCD_HEIGHT - BUTTON_HEIGHT - 20)
 
 void writeCalData(void)
 {
@@ -69,11 +81,38 @@ void setup() {
     lcd.touchStartCal(); //calibrate touchpanel
     writeCalData(); //write data to EEPROM
   }
-  
+
   lcd.fillScreen(drawcolor[BG_COLOR]);
-  lcd.fillRoundRect(20, 170, 50, 50, 5, drawcolor[RED]);
-  lcd.fillRoundRect(130, 170, 50, 50, 5, drawcolor[GREEN]);
-  lcd.fillRoundRect(250, 170, 50, 50, 5, drawcolor[BLUE]);
+  drawPlayPause();
+  drawNextButton();
+  drawPreviousButton();
+}
+
+void drawButtonBg(unsigned int left, bool pressed) {
+  const int color = pressed ? BUTTON_PRESSED_BG : BUTTON_BG;
+  lcd.fillRoundRect(left, BUTTON_HEIGHT_OFFSET, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER_RADIUS, drawcolor[color]);
+}
+
+void drawPlayPause() {
+  drawButtonBg(117, false);
+  if (paused) {
+    lcd.fillRect(141, 170, 15, 40, drawcolor[BG_COLOR]);
+    lcd.fillRect(162, 170, 15, 40, drawcolor[BG_COLOR]);
+  } else {
+    lcd.fillTriangle(145, 170, 145, 210, 175, 190, drawcolor[BG_COLOR]);
+  }
+}
+
+void drawNextButton() {
+  drawButtonBg(215, false);
+  lcd.fillTriangle(236, 170, 236, 210, 266, 190, drawcolor[BG_COLOR]);
+  lcd.fillRect(271, 170, 10, 40, drawcolor[BG_COLOR]);
+}
+
+void drawPreviousButton() {
+  drawButtonBg(20, false);
+  lcd.fillTriangle(56, 190, 86, 210, 86, 170, drawcolor[BG_COLOR]);
+  lcd.fillRect(41, 170, 10, 40, drawcolor[BG_COLOR]);
 }
 
 void loop() {
@@ -92,8 +131,15 @@ void loop() {
           state = "Previous";
         } else if (x >= 130 && x <= 180) {
           // Play
-          Serial.println("Play");
-          state = "Play";
+          if (paused) {
+            Serial.println("Play");
+            state = "Play";
+          } else {
+            Serial.println("Pause");
+            state = "Pause";
+          }
+          paused = !paused;
+          drawPlayPause();
         } else if (x >= 250 && x <= 300) {
           // Next
           Serial.println("Next");
