@@ -28,7 +28,6 @@ uint16_t drawcolor[] = {
 #define LCD_HEIGHT (240)
 #define BUTTON_HEIGHT (60)
 #define BUTTON_WIDTH (85)
-#define BUTTON_BORDER_RADIUS (8)
 #define BUTTON_HEIGHT_OFFSET (LCD_HEIGHT - BUTTON_HEIGHT - 20)
 
 void writeCalData(void)
@@ -83,18 +82,18 @@ void setup() {
   }
 
   lcd.fillScreen(drawcolor[BG_COLOR]);
-  drawPlayPause();
-  drawNextButton();
-  drawPreviousButton();
+  drawPlayPause(false);
+  drawNextButton(false);
+  drawPreviousButton(false);
 }
 
 void drawButtonBg(unsigned int left, bool pressed) {
   const int color = pressed ? BUTTON_PRESSED_BG : BUTTON_BG;
-  lcd.fillRoundRect(left, BUTTON_HEIGHT_OFFSET, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_BORDER_RADIUS, drawcolor[color]);
+  lcd.fillRect(left, BUTTON_HEIGHT_OFFSET, BUTTON_WIDTH, BUTTON_HEIGHT, drawcolor[color]);
 }
 
-void drawPlayPause() {
-  drawButtonBg(117, false);
+void drawPlayPause(bool pressed) {
+  drawButtonBg(117, pressed);
   if (paused) {
     lcd.fillRect(141, 170, 15, 40, drawcolor[BG_COLOR]);
     lcd.fillRect(162, 170, 15, 40, drawcolor[BG_COLOR]);
@@ -103,14 +102,14 @@ void drawPlayPause() {
   }
 }
 
-void drawNextButton() {
-  drawButtonBg(215, false);
+void drawNextButton(bool pressed) {
+  drawButtonBg(215, pressed);
   lcd.fillTriangle(236, 170, 236, 210, 266, 190, drawcolor[BG_COLOR]);
   lcd.fillRect(271, 170, 10, 40, drawcolor[BG_COLOR]);
 }
 
-void drawPreviousButton() {
-  drawButtonBg(20, false);
+void drawPreviousButton(bool pressed) {
+  drawButtonBg(20, pressed);
   lcd.fillTriangle(56, 190, 86, 210, 86, 170, drawcolor[BG_COLOR]);
   lcd.fillRect(41, 170, 10, 40, drawcolor[BG_COLOR]);
 }
@@ -118,18 +117,21 @@ void drawPreviousButton() {
 void loop() {
   lcd.touchRead();
 
+  static int pressedButton = -1;
   if (lcd.touchZ()) {
     if (!touching) {
       unsigned short x = lcd.touchX();
       unsigned short y = lcd.touchY();
       String state = "";
   
-      if (y >= 170 && y <= 220) {
-        if (x >= 20 && x <= 70) {
+      if (y >= 170) {
+        if (x <= 105) {
           // Prev
           Serial.println("Previous");
           state = "Previous";
-        } else if (x >= 130 && x <= 180) {
+          pressedButton = 0;
+          drawPreviousButton(true);
+        } else if (x >= 117 && x <= 202) {
           // Play
           if (paused) {
             Serial.println("Play");
@@ -139,11 +141,14 @@ void loop() {
             state = "Pause";
           }
           paused = !paused;
-          drawPlayPause();
-        } else if (x >= 250 && x <= 300) {
+          pressedButton = 1;
+          drawPlayPause(true);
+        } else if (x >= 215) {
           // Next
           Serial.println("Next");
           state = "Next";
+          pressedButton = 2;
+          drawNextButton(true);
         }
       }
 
@@ -153,5 +158,17 @@ void loop() {
     touching = true;
   } else {
     touching = false;
+    switch (pressedButton) {
+      case 0: 
+        drawPreviousButton(false);
+        break;
+      case 1: 
+        drawPlayPause(false);
+        break;
+      case 2: 
+        drawNextButton(false);
+        break;
+    }
+    pressedButton = -1;
   }
 }
