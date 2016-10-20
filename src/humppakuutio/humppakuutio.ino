@@ -2,9 +2,12 @@
 #include <MI0283QT9.h>
 #include <EEPROM.h>
 
+#include "ScrollingText.h"
+
 MI0283QT9 lcd;  //MI0283QT9 Adapter v1
 bool touching = false;
 bool paused = false;
+ScrollingText *text;
 
 uint16_t drawcolor[] = {
   RGB( 15, 15, 15), //bg
@@ -85,6 +88,12 @@ void setup() {
   drawPlayPause(false);
   drawNextButton(false);
   drawPreviousButton(false);
+
+  text = new ScrollingText(lcd);
+  text->setText("0 to 100 / The Catch Up - Drake");
+  text->setPosition(10, 10);
+  text->setColor(drawcolor[WHITE]);
+  text->setBackgroundColor(drawcolor[BG_COLOR]);
 }
 
 void drawButtonBg(unsigned int left, bool pressed) {
@@ -116,6 +125,7 @@ void drawPreviousButton(bool pressed) {
 
 void loop() {
   lcd.touchRead();
+  text->update();
 
   static int pressedButton = -1;
   if (lcd.touchZ()) {
