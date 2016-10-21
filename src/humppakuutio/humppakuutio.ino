@@ -1,6 +1,9 @@
 #include <GraphicsLib.h>
 #include <MI0283QT9.h>
 #include <EEPROM.h>
+#include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <iWRAP.h>
 
 #include "ScrollingText.h"
 
@@ -8,6 +11,7 @@ MI0283QT9 lcd;  //MI0283QT9 Adapter v1
 bool touching = false;
 bool paused = false;
 ScrollingText *text;
+SoftwareSerial wtSerial(10, 2);
 
 uint16_t drawcolor[] = {
   RGB( 15, 15, 15), //bg
@@ -32,6 +36,10 @@ uint16_t drawcolor[] = {
 #define BUTTON_HEIGHT (60)
 #define BUTTON_WIDTH (85)
 #define BUTTON_HEIGHT_OFFSET (LCD_HEIGHT - BUTTON_HEIGHT - 20)
+
+int iwrap_out(int len, unsigned char *data) {
+  return wtSerial.write(data, len);
+}
 
 void writeCalData(void)
 {
@@ -70,10 +78,19 @@ uint8_t readCalData(void)
   return 1;
 }
 
+int serial_out(const char *str) {
+  // debug output to host goes through hardware serial
+  return Serial.print(str);
+}
+
 
 void setup() {
   Serial.begin(9600);
   while (!Serial);
+
+  wtSerial.begin(38400);
+  iwrap_output = iwrap_out;
+  iwrap_debug = serial_out;
   
   lcd.begin();
   lcd.led(100);
@@ -127,6 +144,11 @@ void loop() {
   lcd.touchRead();
   text->update();
 
+  uint16_t result;
+  if ((result = wtSerial.read()) < 256) {
+    iwrap_parse(result & 0xFF, IWRAP_MODE_MUX);
+  }
+
   static int pressedButton = -1;
   if (lcd.touchZ()) {
     if (!touching) {
@@ -141,14 +163,17 @@ void loop() {
           state = "Previous";
           pressedButton = 0;
           drawPreviousButton(true);
+          iwrap_send_command("AVRCP BACKWARD", IWRAP_MODE_MUX);
         } else if (x >= 117 && x <= 202) {
           // Play
           if (paused) {
             Serial.println("Play");
             state = "Play";
+            iwrap_send_command("AVRCP PLAY", IWRAP_MODE_MUX);
           } else {
             Serial.println("Pause");
             state = "Pause";
+            iwrap_send_command("AVRCP PAUSE", IWRAP_MODE_MUX);
           }
           paused = !paused;
           pressedButton = 1;
@@ -159,6 +184,7 @@ void loop() {
           state = "Next";
           pressedButton = 2;
           drawNextButton(true);
+          iwrap_send_command("AVRCP PDU 30", IWRAP_MODE_MUX);
         }
       }
 
