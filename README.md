@@ -16,3 +16,8 @@ This is git for our awesome project!
 - Case
 
 ## Resources/links
+
+## Idea behind intromenuetc
+So I started making introscreen that shows when device is powered up, but nothing is playing.
+When it gets streaming is started, it changes to playmenu (own function now).
+When phone is disconnected, it changes back to introscreen.

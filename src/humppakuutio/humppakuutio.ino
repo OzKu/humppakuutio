@@ -34,6 +34,10 @@ bool paused = false;
 ScrollingText *text;
 // SoftwareSerial Serial1(10, 2);
 unsigned long textChanged = 0;
+unsigned long lastIntro = 0;
+unsigned long lastTouched = 0;
+
+unsigned int pageMode = -1;
 
 uint16_t drawcolor[] = {
   RGB( 15, 15, 15), //bg
@@ -43,6 +47,7 @@ uint16_t drawcolor[] = {
   RGB(255, 255, 255), // white
   RGB(130, 130, 130), // button bg
   RGB(110, 110, 110), // button pressed bg
+  RGB(70, 70, 70),
 };
 
 #define BG_COLOR (0)
@@ -52,6 +57,14 @@ uint16_t drawcolor[] = {
 #define WHITE (4)
 #define BUTTON_BG (5)
 #define BUTTON_PRESSED_BG (6)
+#define BUTTON_ENABLED (7)
+
+int screen=0;
+int last_screen=0;
+
+#define INTRO (0)
+#define PLAY (1)
+#define SETUP (2)
 
 #define LCD_WIDTH (320)
 #define LCD_HEIGHT (240)
@@ -132,7 +145,7 @@ void writeCalData(void)
   uint8_t *ptr;
 
   EEPROM.write(addr++, 0xAA);
-  
+
   ptr = (uint8_t*)&lcd.tp_matrix;
   for(i=0; i < sizeof(CAL_MATRIX); i++)
   {
@@ -165,17 +178,28 @@ uint8_t readCalData(void)
 
 void my_iwrap_evt_a2dp_streaming_start(uint8_t link_id) {
   Serial.println("!! streaming start");
+  paused=false;
+  drawPlayPause(false);
+  requestSongInfo();
+  #ifdef LCD
+  if (screen != PLAY) drawPlayMenu();
+  #endif
 }
 
 void my_iwrap_evt_a2dp_streaming_stop(uint8_t link_id) {
   Serial.println("!! streaming stop");
+  paused=true;
+  drawPlayPause(false);
+}
+
+void my_iwrap_evt_no_carrier(uint8_t link_id,uint16_t error_code, const char *message) {
+  Serial.println("Disconnected!");
+  if(millis()-lastIntro > 500)drawIntro();
 }
 
 void my_iwrap_evt_track_changed() {
   Serial.println("!! track changed");
-  iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);  // request track change
-  iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);  // request title
-  iwrap_send_command("AVRCP PDU 20 1 2", IWRAP_MODE_MUX);  // request artist
+  requestSongInfo();
 }
 
 void my_iwrap_evt_title_received(const char *rawTitle) {
@@ -207,7 +231,7 @@ void my_iwrap_evt_artist_received(const char *rawArtist) {
 
   digitalWrite(MODULE_RESET_PIN, LOW);
   pinMode(MODULE_RESET_PIN, OUTPUT);
-  
+
   //lcd.begin();
   //lcd.led(100);
   // lcd.touchRead();
@@ -226,7 +250,7 @@ void my_iwrap_evt_artist_received(const char *rawArtist) {
   text->setText("0 to 100 / The Catch Up - Drake");
   text->setPosition(10, 10);
   text->setColor(drawcolor[WHITE]);
-  text->setBackgroundColor(drawcolor[BG_COLOR]); 
+  text->setBackgroundColor(drawcolor[BG_COLOR]);
 }*/
 
 void setup() {
@@ -254,10 +278,7 @@ void setup() {
     writeCalData(); //write data to EEPROM
   }
 
-  lcd.fillScreen(drawcolor[BG_COLOR]);
-  drawPlayPause(false);
-  drawNextButton(false);
-  drawPreviousButton(false);
+  drawIntro();
   #endif
 
   iwrap_evt_a2dp_streaming_start = my_iwrap_evt_a2dp_streaming_start;
@@ -265,6 +286,7 @@ void setup() {
   iwrap_evt_track_changed = my_iwrap_evt_track_changed;
   iwrap_evt_title_received = my_iwrap_evt_title_received;
   iwrap_evt_artist_received = my_iwrap_evt_artist_received;
+  iwrap_evt_no_carrier = my_iwrap_evt_no_carrier;
 }
 
 void drawButtonBg(unsigned int left, bool pressed) {
@@ -273,12 +295,14 @@ void drawButtonBg(unsigned int left, bool pressed) {
 }
 
 void drawPlayPause(bool pressed) {
+  if(screen == PLAY){
   drawButtonBg(117, pressed);
-  if (paused) {
-    lcd.fillRect(141, 170, 15, 40, drawcolor[BG_COLOR]);
-    lcd.fillRect(162, 170, 15, 40, drawcolor[BG_COLOR]);
-  } else {
-    lcd.fillTriangle(145, 170, 145, 210, 175, 190, drawcolor[BG_COLOR]);
+    if (!paused) {
+      lcd.fillRect(141, 170, 15, 40, drawcolor[BG_COLOR]);
+      lcd.fillRect(162, 170, 15, 40, drawcolor[BG_COLOR]);
+    } else {
+      lcd.fillTriangle(145, 170, 145, 210, 175, 190, drawcolor[BG_COLOR]);
+    }
   }
 }
 
@@ -294,76 +318,215 @@ void drawPreviousButton(bool pressed) {
   lcd.fillRect(41, 170, 10, 40, drawcolor[BG_COLOR]);
 }
 
-void loop2() {
-  lcd.touchRead();
-  // text->update();
-  if(global_title != prev_title && millis() - textChanged > 50) {
+void drawSetupMenu(int items){
+  lcd.fillScreen(drawcolor[BG_COLOR]);
+  for(int i=0;i<items;i++){
+    drawSetupButton(i,false);
+  }
+  last_screen=screen;
+  screen=SETUP;
+}
+
+void drawSetupButton(unsigned int top, boolean pressed){
+  int color;
+  if (top == pageMode) color=BUTTON_ENABLED;
+  else color = pressed ? BUTTON_PRESSED_BG : BUTTON_BG;
+  lcd.fillRect(10, 10+(top*60), 300, 50, drawcolor[color]);
+  switch (top) {
+    case 0:
+      lcd.drawText(50, 35, "Discoverable and connectable", drawcolor[WHITE], drawcolor[color], 1);
+    case 1:
+      lcd.drawText(45, 95, "Undiscoverable but connectable", drawcolor[WHITE], drawcolor[color], 1);
+    case 2:
+      lcd.drawText(35, 155, "Undiscoverable and unconnectable", drawcolor[WHITE], drawcolor[color], 1);
+    case 3:
+      if (iwrap_autocall_target) lcd.drawText(95, 215, "Disable auto-call", drawcolor[WHITE], drawcolor[color], 1);
+      else lcd.drawText(100, 215, "Enable auto-call", drawcolor[WHITE], drawcolor[color], 1);
+  }
+}
+
+void drawIntro(){
+  lcd.fillScreen(drawcolor[BG_COLOR]);
+  lcd.drawText(20, 60, "HUMPPA", drawcolor[GREEN], drawcolor[BG_COLOR], 6);
+  lcd.drawText(20, 120, "KUUTIO", drawcolor[GREEN], drawcolor[BG_COLOR], 6);
+  last_screen=screen;
+  screen=INTRO;
+  lastIntro = millis();
+}
+
+void drawPlayMenu(){
+  last_screen=screen;
+  screen=PLAY;
+  lcd.fillScreen(drawcolor[BG_COLOR]);
+  drawPlayPause(false);
+  drawNextButton(false);
+  drawPreviousButton(false);
+  drawArtistTitle();
+
+}
+
+void drawArtistTitle(){
+  if(global_title != prev_title && millis() - textChanged > 150 && screen==PLAY) {
     lcd.fillRect(0, 0, 320, 60, drawcolor[BG_COLOR]);
     lcd.drawText(20, 20, global_title, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
     lcd.drawText(20, 40, global_artist, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
     prev_title = global_title;
   }
+}
+
+void requestSongInfo(){
+  iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);  // request track change
+  iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);  // request title
+  iwrap_send_command("AVRCP PDU 20 1 2", IWRAP_MODE_MUX);  // request artist
+}
+
+void loop2() {
+  lcd.touchRead();
+  // text->update();
+  drawArtistTitle();
 
   static int pressedButton = -1;
   if (lcd.touchZ()) {
+    lastTouched = millis();
     if (!touching) {
       unsigned short x = lcd.touchX();
       unsigned short y = lcd.touchY();
       String state = "";
 
-      if (y >= 170) {
-        if (x <= 105) {
-          // Prev
-          Serial.println("Previous");
-          state = "Previous";
-          pressedButton = 0;
-          drawPreviousButton(true);
-          iwrap_send_command("AVRCP BACKWARD", IWRAP_MODE_MUX);
-          //iwrap_send_command("AVRCP PDU 20 2 1 2", IWRAP_MODE_MUX);
-        } else if (x >= 117 && x <= 202) {
-          // Play
-          if (paused) {
-            Serial.println("Play");
-            state = "Play";
-            iwrap_send_command("AVRCP PLAY", IWRAP_MODE_MUX);
-          } else {
-            Serial.println("Pause");
-            state = "Pause";
-            iwrap_send_command("AVRCP PAUSE", IWRAP_MODE_MUX);
+      //Different handlings for touches on different screens.
+      switch (screen) {
+        case PLAY:
+          if (y >= 170) {
+            if (x <= 105) {
+              // Prev
+              Serial.println("Previous");
+              state = "Previous";
+              pressedButton = 0;
+              drawPreviousButton(true);
+              iwrap_send_command("AVRCP BACKWARD", IWRAP_MODE_MUX);
+              //iwrap_send_command("AVRCP PDU 20 2 1 2", IWRAP_MODE_MUX);
+            } else if (x >= 117 && x <= 202) {
+              // Play
+              if (paused) {
+                Serial.println("Play");
+                state = "Play";
+                iwrap_send_command("AVRCP PLAY", IWRAP_MODE_MUX);
+              } else {
+                Serial.println("Pause");
+                state = "Pause";
+                iwrap_send_command("AVRCP PAUSE", IWRAP_MODE_MUX);
+              }
+              paused = !paused;
+              pressedButton = 1;
+              drawPlayPause(true);
+            } else if (x >= 215) {
+              // Next
+              Serial.println("Next");
+              state = "Next";
+              pressedButton = 2;
+              drawNextButton(true);
+              iwrap_send_command("AVRCP FORWARD", IWRAP_MODE_MUX);
+            }
           }
-          paused = !paused;
-          pressedButton = 1;
-          drawPlayPause(true);
-        } else if (x >= 215) {
-          // Next
-          Serial.println("Next");
-          state = "Next";
-          pressedButton = 2;
-          drawNextButton(true);
-          iwrap_send_command("AVRCP FORWARD", IWRAP_MODE_MUX);
-        }
-      }
+          else if(x > 280 && y < 40) drawSetupMenu(4);
+          else iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);
+          break;
+
+        case INTRO:
+          if (x > 280 && y > 120 && y < 140) drawSetupMenu(4);
+          break;
+        case SETUP:
+
+          unsigned int old_PM = pageMode;
+          if (y <= 65) {
+            //Discoverable and connectable
+            pageMode = 0;
+            drawSetupButton(old_PM,false);
+            drawSetupButton(0,true);
+            pressedButton=0;
+            iwrap_send_command("SET BT PAGEMODE 3", iwrap_mode);
+          } else if (y>65 && y<=125) {
+            //Undiscoverable but connectable
+            pageMode = 1;
+            drawSetupButton(old_PM,false);
+            drawSetupButton(1,true);
+            pressedButton=1;
+            iwrap_send_command("SET BT PAGEMODE 2", iwrap_mode);
+          } else if (y>125 && y<=185) {
+            //Undiscoverable and unconnectable
+            pageMode = 2;
+            drawSetupButton(old_PM,false);
+            drawSetupButton(2,true);
+            pressedButton=2;
+            iwrap_send_command("SET BT PAGEMODE 0", iwrap_mode);
+          } else if (y>185) {
+            Serial.println("menu 4");
+            drawSetupButton(3,true);
+            pressedButton=3;
+            if (iwrap_autocall_target) {
+                serial_out("=> (1) Disabling round-robin autocall algorithm\n\n");
+                iwrap_autocall_target = 0;
+            } else {
+                serial_out("=> (1) Enabling round-robin autocall algorithm\n\n");
+                iwrap_autocall_target = 1;
+            }
+          }
+
+          break;
+    }
 
      // lcd.fillRect(0, 0, 320, 30, drawcolor[BG_COLOR]);
      // lcd.drawText(20, 20, state, drawcolor[WHITE], drawcolor[BG_COLOR], 2);
-      iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);
+
     }
     touching = true;
   } else {
     touching = false;
-    switch (pressedButton) {
-      case 0:
-        drawPreviousButton(false);
+    switch(screen) {
+      case PLAY:
+        switch (pressedButton) {
+          case 0:
+            drawPreviousButton(false);
+            break;
+          case 1:
+            drawPlayPause(false);
+            break;
+          case 2:
+            drawNextButton(false);
+            break;
+          }
+        pressedButton = -1;
         break;
-      case 1:
-        drawPlayPause(false);
+      case SETUP:
+        switch (pressedButton) {
+          case 0:
+            drawSetupButton(0,false);
+            break;
+          case 1:
+            drawSetupButton(1,false);
+            break;
+          case 2:
+            drawSetupButton(2,false);
+            break;
+          case 3:
+            drawSetupButton(3,false);
+            break;
+          }
+        pressedButton = -1;
         break;
-      case 2:
-        drawNextButton(false);
-        break;
+      }
+      if (millis()-lastTouched > 5000 && screen == SETUP){
+        switch (last_screen) {
+          case INTRO:
+            drawIntro();
+            break;
+          case PLAY:
+            drawPlayMenu();
+            break;
+        }
+      }
+
     }
-    pressedButton = -1;
-  }
 }
 
 void loop() {
@@ -657,7 +820,8 @@ void process_demo_choice(char b) {
         serial_out("=> (4) Setting page mode to 0 (undiscoverable and unconnectable)\n\n");
         iwrap_send_command("SET BT PAGEMODE 0", iwrap_mode);
     } else if (b =='5') {
-        iwrap_send_command("AVRCP PDU 31 1 2", IWRAP_MODE_MUX);
+        //drawIntro();
+        drawSetupMenu(4);
     } else if (b =='6') {
         iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);
     } else if (b =='7') {
