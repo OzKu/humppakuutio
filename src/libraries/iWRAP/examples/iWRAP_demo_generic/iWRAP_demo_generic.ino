@@ -1,9 +1,73 @@
-#define PLATFORM_ARDUINO_UNO
+// iWRAP external host controller library generic demo
+// 2014-05-25 by Jeff Rowberg <jeff@rowberg.net>
+//
+// Changelog:
+//  2014-05-25 - Initial release
+
+/* ============================================
+iWRAP host controller library code is placed under the MIT license
+Copyright (c) 2014 Jeff Rowberg
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+===============================================
+*/
+
+// iWRAP firmware should be v5.0.2 (build 861 or higher)
+// Config settings may vary, but ideally you will at least enable a few
+// special config bits and MUX mode with the following commands:
+//
+//      SET CONTROL CONFIG 3400 0040 70A1
+//      SET CONTROL MUX 1
+//
+// See the iWRAP User Guide from Bluegiga for more detail. The following
+// pre-built MUX frames can be handy for changing various settings, e.g.
+// using an app like Realterm with the "Send" tab and "Send Numbers"
+// button to send a hex string while the module is configured with MUX
+// mode enabled:
+//
+// MUX frame for "SET CONTROL MUX 0" (disable MUX mode):
+//      $bf $ff $00 $17 $53 $45 $54 $20 $43 $4f $4e $54 $52 $4f $4c $20 $4d $55 $58 $20 $30 $00
+// MUX frame for "SET CONTROL BAUD 38400":
+//      $bf $ff $00 $16 $53 $45 $54 $20 $43 $4f $4e $54 $52 $4f $4c $20 $42 $41 $55 $44 $20 $33 $38 $34 $30 $30 $00
+// MUX frame for "SET CONTROL BAUD 115200":
+//      $bf $ff $00 $17 $53 $45 $54 $20 $43 $4f $4e $54 $52 $4f $4c $20 $42 $41 $55 $44 $20 $31 $31 $35 $32 $30 $30 $00
+
+#include <Arduino.h>
+//#include <avr/pgmspace.h>
+
+//#define PLATFORM_ARDUINO_UNO    // also Pro Mini and other ATMega328-based boards
+#define PLATFORM_TEENSY2        // both Teensy 2.0 and Teensy++ 2.0
+
+#ifdef PLATFORM_ARDUINO_UNO
+    #include <AltSoftSerial.h>
+    AltSoftSerial mySerial; // RX=8, TX=9
+#endif
+
 #define HOST_BAUD                   38400   // works with 8MHz CPU clock
 #define IWRAP_BAUD                  38400   // works with 8MHz CPU clock (REQUIRES iWRAP RECONFIGURATION, DEFAULT IS 115200)
 #define MODULE_RESET_PIN            12      // optional connection for MCU-based module reset
 
-#define IWRAP_DEBUG
+// -------- iWRAP configuration definitions --------
+// COPY TO TOP OF "iWRAP.h" TO APPLY TO THIS PROGRAM
+// OR ELSE ALL FEATURES ENABLED DUE TO BUILD SYSTEM
+// -------------------------------------------------
+//#define IWRAP_DEBUG
 #define IWRAP_INCLUDE_RSP_CALL
 #define IWRAP_INCLUDE_RSP_LIST_COUNT
 #define IWRAP_INCLUDE_RSP_LIST_RESULT
@@ -13,54 +77,11 @@
 #define IWRAP_INCLUDE_EVT_PAIR
 #define IWRAP_INCLUDE_EVT_READY
 #define IWRAP_INCLUDE_EVT_RING
-#define IWRAP_INCLUDE_EVT_A2DP_STREAMING_START      // READY
-#define IWRAP_INCLUDE_EVT_A2DP_STREAMING_STOP       // READY
 #define IWRAP_CONFIGURED
+// -------------------------------------------------
 
-#define LCD
+#include <iWRAP.h>
 
-#include <GraphicsLib.h>
-#include <MI0283QT9.h>
-#include <EEPROM.h>
-#include <Arduino.h>
-// #include <SoftwareSerial.h>
-#include "iWRAP.h"
-
-#include "ScrollingText.h"
-
-MI0283QT9 lcd;  //MI0283QT9 Adapter v1
-bool touching = false;
-bool paused = false;
-ScrollingText *text;
-// SoftwareSerial Serial1(10, 2);
-unsigned long textChanged = 0;
-
-uint16_t drawcolor[] = {
-  RGB( 15, 15, 15), //bg
-  RGB(255,  0, 0), // previous
-  RGB(0, 255, 0), // play
-  RGB(0, 0, 255), // next
-  RGB(255, 255, 255), // white
-  RGB(130, 130, 130), // button bg
-  RGB(110, 110, 110), // button pressed bg
-};
-
-#define BG_COLOR (0)
-#define RED (1)
-#define GREEN (2)
-#define BLUE (3)
-#define WHITE (4)
-#define BUTTON_BG (5)
-#define BUTTON_PRESSED_BG (6)
-
-#define LCD_WIDTH (320)
-#define LCD_HEIGHT (240)
-#define BUTTON_HEIGHT (60)
-#define BUTTON_WIDTH (85)
-#define BUTTON_HEIGHT_OFFSET (LCD_HEIGHT - BUTTON_HEIGHT - 20)
-
-
-// IWRAP
 #define IWRAP_STATE_IDLE            0
 #define IWRAP_STATE_UNKNOWN         1
 #define IWRAP_STATE_PENDING_AT      2
@@ -70,11 +91,6 @@ uint16_t drawcolor[] = {
 #define IWRAP_STATE_COMM_FAILED     255
 
 #define IWRAP_MAX_PAIRINGS          16
-
-String global_title = "Title";
-String prev_title = " ";
-String global_artist = "Artist";
-String prev_artist = " ";
 
 // connection map structure
 typedef struct {
@@ -111,6 +127,17 @@ uint16_t iwrap_autocall_delay_ms = 10000;
 uint32_t iwrap_autocall_last_time = 0;
 uint8_t iwrap_autocall_index = 0;
 
+// iWRAP callbacks necessary for application
+void my_iwrap_rsp_call(uint8_t link_id);
+void my_iwrap_rsp_list_count(uint8_t num_of_connections);
+void my_iwrap_rsp_list_result(uint8_t link_id, const char *mode, uint16_t blocksize, uint32_t elapsed_time, uint16_t local_msc, uint16_t remote_msc, const iwrap_address_t *addr, uint16_t channel, uint8_t direction, uint8_t powermode, uint8_t role, uint8_t crypt, uint16_t buffer, uint8_t eretx);
+void my_iwrap_rsp_set(uint8_t category, const char *option, const char *value);
+void my_iwrap_evt_connect(uint8_t link_id, const char *type, uint16_t target, const iwrap_address_t *address);
+void my_iwrap_evt_no_carrier(uint8_t link_id, uint16_t error_code, const char *message);
+void my_iwrap_evt_pair(const iwrap_address_t *address, uint8_t key_type, const uint8_t *link_key);
+void my_iwrap_evt_ready();
+void my_iwrap_evt_ring(uint8_t link_id, const iwrap_address_t *address, uint8_t channel, const char *profile);
+
 // general helper functions
 uint8_t find_pairing_from_mac(const iwrap_address_t *mac);
 uint8_t find_pairing_from_link_id(uint8_t link_id);
@@ -124,253 +151,46 @@ void process_demo_choice(char b);
 int serial_out(const char *str);
 int serial_out(const __FlashStringHelper *str);
 int iwrap_out(int len, unsigned char *data);
-// IWRAP
-
-void writeCalData(void)
-{
-  uint16_t i, addr=0;
-  uint8_t *ptr;
-
-  EEPROM.write(addr++, 0xAA);
-  
-  ptr = (uint8_t*)&lcd.tp_matrix;
-  for(i=0; i < sizeof(CAL_MATRIX); i++)
-  {
-    EEPROM.write(addr++, *ptr++);
-  }
-
-  return;
-}
-
-
-uint8_t readCalData(void)
-{
-  uint16_t i, addr=0;
-  uint8_t *ptr;
-  uint8_t c;
-
-  c = EEPROM.read(addr++);
-  if(c == 0xAA)
-  {
-    ptr = (uint8_t*)&lcd.tp_matrix;
-    for(i=0; i < sizeof(CAL_MATRIX); i++)
-    {
-      *ptr++ = EEPROM.read(addr++);
-    }
-    return 0;
-  }
-
-  return 1;
-}
-
-void my_iwrap_evt_a2dp_streaming_start(uint8_t link_id) {
-  Serial.println("!! streaming start");
-}
-
-void my_iwrap_evt_a2dp_streaming_stop(uint8_t link_id) {
-  Serial.println("!! streaming stop");
-}
-
-void my_iwrap_evt_track_changed() {
-  Serial.println("!! track changed");
-  iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);  // request track change
-  iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);  // request title
-  iwrap_send_command("AVRCP PDU 20 1 2", IWRAP_MODE_MUX);  // request artist
-}
-
-void my_iwrap_evt_title_received(const char *rawTitle) {
-  String title = String(rawTitle);
-  title = title.substring(48, title.length() - 3);
-  global_title = title;
-  Serial.println("title: " + title);
-  textChanged = millis();
-}
-
-void my_iwrap_evt_artist_received(const char *rawArtist) {
-  String artist = String(rawArtist);
-  artist = artist.substring(49, artist.length() - 3);
-  Serial.println("artisti makssaaaaa: '" + artist + "'");
-  textChanged = millis();
-  global_artist = artist;
-}
-
-/*void setup() {
-  Serial.begin(38400);
-  while (!Serial);
-  Serial1.begin(38400);
-
-  // assign transport/debug output
-  iwrap_output = iwrap_out;
-  #ifdef IWRAP_DEBUG
-      iwrap_debug = serial_out;
-  #endif // IWRAP_DEBUG
-
-  digitalWrite(MODULE_RESET_PIN, LOW);
-  pinMode(MODULE_RESET_PIN, OUTPUT);
-  
-  //lcd.begin();
-  //lcd.led(100);
-  // lcd.touchRead();
-  if(lcd.touchZ() || readCalData()) //calibration data in EEPROM?
-  {
-    lcd.touchStartCal(); //calibrate touchpanel
-    writeCalData(); //write data to EEPROM
-  }
-
-  lcd.fillScreen(drawcolor[BG_COLOR]);
-  drawPlayPause(false);
-  drawNextButton(false);
-  drawPreviousButton(false);
-
-  text = new ScrollingText(lcd);
-  text->setText("0 to 100 / The Catch Up - Drake");
-  text->setPosition(10, 10);
-  text->setColor(drawcolor[WHITE]);
-  text->setBackgroundColor(drawcolor[BG_COLOR]); 
-}*/
 
 void setup() {
-  Serial.begin(HOST_BAUD);
-  Serial1.begin(IWRAP_BAUD);
+    #if defined(PLATFORM_ARDUINO_UNO)
+        // open the hardware serial port for debug/status output and software serial for iWRAP
+        Serial.begin(HOST_BAUD);
+        mySerial.begin(IWRAP_BAUD);
+    #elif defined(PLATFORM_TEENSY2)
+        // open the USB serial port for debug/status output and Serial1 for iWRAP
+        Serial.begin(HOST_BAUD);
+        Serial1.begin(IWRAP_BAUD);
+    #else
+        #error Select a supported platform, or add support for your own
+    #endif
+    
+    // setup optional hardware reset pin connection (digital pin 9)
+    digitalWrite(MODULE_RESET_PIN, LOW);
+    pinMode(MODULE_RESET_PIN, OUTPUT);
 
-  digitalWrite(MODULE_RESET_PIN, LOW);
-  pinMode(MODULE_RESET_PIN, OUTPUT);
-
-  // assign transport/debug output
-  iwrap_output = iwrap_out;
-  #ifdef IWRAP_DEBUG
-      iwrap_debug = serial_out;
-  #endif // IWRAP_DEBUG
-
-  serial_out(F("iWRAP host library generic demo started\n"));
-
-  #ifdef LCD
-  lcd.begin();
-  lcd.led(100);
-  lcd.touchRead();
-  if(lcd.touchZ() || readCalData()) //calibration data in EEPROM?
-  {
-    lcd.touchStartCal(); //calibrate touchpanel
-    writeCalData(); //write data to EEPROM
-  }
-
-  lcd.fillScreen(drawcolor[BG_COLOR]);
-  drawPlayPause(false);
-  drawNextButton(false);
-  drawPreviousButton(false);
-  #endif
-
-  iwrap_evt_a2dp_streaming_start = my_iwrap_evt_a2dp_streaming_start;
-  iwrap_evt_a2dp_streaming_stop = my_iwrap_evt_a2dp_streaming_stop;
-  iwrap_evt_track_changed = my_iwrap_evt_track_changed;
-  iwrap_evt_title_received = my_iwrap_evt_title_received;
-  iwrap_evt_artist_received = my_iwrap_evt_artist_received;
-}
-
-void drawButtonBg(unsigned int left, bool pressed) {
-  const int color = pressed ? BUTTON_PRESSED_BG : BUTTON_BG;
-  lcd.fillRect(left, BUTTON_HEIGHT_OFFSET, BUTTON_WIDTH, BUTTON_HEIGHT, drawcolor[color]);
-}
-
-void drawPlayPause(bool pressed) {
-  drawButtonBg(117, pressed);
-  if (paused) {
-    lcd.fillRect(141, 170, 15, 40, drawcolor[BG_COLOR]);
-    lcd.fillRect(162, 170, 15, 40, drawcolor[BG_COLOR]);
-  } else {
-    lcd.fillTriangle(145, 170, 145, 210, 175, 190, drawcolor[BG_COLOR]);
-  }
-}
-
-void drawNextButton(bool pressed) {
-  drawButtonBg(215, pressed);
-  lcd.fillTriangle(236, 170, 236, 210, 266, 190, drawcolor[BG_COLOR]);
-  lcd.fillRect(271, 170, 10, 40, drawcolor[BG_COLOR]);
-}
-
-void drawPreviousButton(bool pressed) {
-  drawButtonBg(20, pressed);
-  lcd.fillTriangle(56, 190, 86, 210, 86, 170, drawcolor[BG_COLOR]);
-  lcd.fillRect(41, 170, 10, 40, drawcolor[BG_COLOR]);
-}
-
-void loop2() {
-  lcd.touchRead();
-  // text->update();
-  if(global_title != prev_title && millis() - textChanged > 50) {
-    lcd.fillRect(0, 0, 320, 60, drawcolor[BG_COLOR]);
-    lcd.drawText(20, 20, global_title, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
-    lcd.drawText(20, 40, global_artist, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
-    prev_title = global_title;
-  }
-
-  static int pressedButton = -1;
-  if (lcd.touchZ()) {
-    if (!touching) {
-      unsigned short x = lcd.touchX();
-      unsigned short y = lcd.touchY();
-      String state = "";
-
-      if (y >= 170) {
-        if (x <= 105) {
-          // Prev
-          Serial.println("Previous");
-          state = "Previous";
-          pressedButton = 0;
-          drawPreviousButton(true);
-          iwrap_send_command("AVRCP BACKWARD", IWRAP_MODE_MUX);
-          //iwrap_send_command("AVRCP PDU 20 2 1 2", IWRAP_MODE_MUX);
-        } else if (x >= 117 && x <= 202) {
-          // Play
-          if (paused) {
-            Serial.println("Play");
-            state = "Play";
-            iwrap_send_command("AVRCP PLAY", IWRAP_MODE_MUX);
-          } else {
-            Serial.println("Pause");
-            state = "Pause";
-            iwrap_send_command("AVRCP PAUSE", IWRAP_MODE_MUX);
-          }
-          paused = !paused;
-          pressedButton = 1;
-          drawPlayPause(true);
-        } else if (x >= 215) {
-          // Next
-          Serial.println("Next");
-          state = "Next";
-          pressedButton = 2;
-          drawNextButton(true);
-          iwrap_send_command("AVRCP FORWARD", IWRAP_MODE_MUX);
-        }
-      }
-
-     // lcd.fillRect(0, 0, 320, 30, drawcolor[BG_COLOR]);
-     // lcd.drawText(20, 20, state, drawcolor[WHITE], drawcolor[BG_COLOR], 2);
-      iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);
-    }
-    touching = true;
-  } else {
-    touching = false;
-    switch (pressedButton) {
-      case 0:
-        drawPreviousButton(false);
-        break;
-      case 1:
-        drawPlayPause(false);
-        break;
-      case 2:
-        drawNextButton(false);
-        break;
-    }
-    pressedButton = -1;
-  }
+    // assign transport/debug output
+    iwrap_output = iwrap_out;
+    #ifdef IWRAP_DEBUG
+        iwrap_debug = serial_out;
+    #endif /* IWRAP_DEBUG */
+    
+    // assign event callbacks
+    iwrap_rsp_call = my_iwrap_rsp_call;
+    iwrap_rsp_list_count = my_iwrap_rsp_list_count;
+    iwrap_rsp_list_result = my_iwrap_rsp_list_result;
+    iwrap_rsp_set = my_iwrap_rsp_set;
+    iwrap_evt_connect = my_iwrap_evt_connect;
+    iwrap_evt_no_carrier = my_iwrap_evt_no_carrier;
+    iwrap_evt_pair = my_iwrap_evt_pair;
+    iwrap_evt_ready = my_iwrap_evt_ready;
+    iwrap_evt_ring = my_iwrap_evt_ring;
+    
+    // boot message to host
+    serial_out(F("iWRAP host library generic demo started\n"));
 }
 
 void loop() {
-  #ifdef LCD
-  loop2();
-  #endif
-
     uint16_t result;
 
     // manage iWRAP state machine
@@ -386,7 +206,7 @@ void loop() {
                 iwrap_pending_call_link_id = 0xFF;
                 iwrap_connected_devices = 0;
                 iwrap_active_connections = 0;
-
+                
                 // send command to test module connectivity
                 serial_out(F("Testing iWRAP communication...\n"));
                 iwrap_send_command("AT", iwrap_mode);
@@ -412,7 +232,6 @@ void loop() {
                 }
                 print_connection_map();
                 print_demo_menu();
-                iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);
                 iwrap_state = IWRAP_STATE_IDLE;
             } else if (iwrap_state == IWRAP_STATE_PENDING_CALL && !iwrap_pending_calls) {
                 // all done!
@@ -433,10 +252,10 @@ void loop() {
                 //char cmd[] = "CALL AA:BB:CC:DD:EE:FF * IAP";        // IAP
                 char cmd[] = "CALL AA:BB:CC:DD:EE:FF 1101 RFCOMM";  // SPP
                 char *cptr = cmd + 5;
-
+                
                 // find first unconnected device
                 for (; iwrap_connection_map[iwrap_autocall_index] -> active_links; iwrap_autocall_index++);
-
+                
                 // write MAC string into call command buffer and send it
                 iwrap_bintohexstr((uint8_t *)(iwrap_connection_map[iwrap_autocall_index] -> mac.address), 6, &cptr, ':', 0);
                 char s[21];
@@ -447,14 +266,14 @@ void loop() {
             }
         }
     }
-
+    
     // check for incoming iWRAP data
     #if defined(PLATFORM_ARDUINO_UNO)
-        if ((result = Serial1.read()) < 256) iwrap_parse(result & 0xFF, iwrap_mode);
+        if ((result = mySerial.read()) < 256) iwrap_parse(result & 0xFF, iwrap_mode);
     #elif defined(PLATFORM_TEENSY2)
         if ((result = Serial1.read()) < 256) iwrap_parse(result & 0xFF, iwrap_mode);
     #endif
-
+    
     // check for timeout if still testing communication
     if (!iwrap_initialized && iwrap_state == IWRAP_STATE_PENDING_AT) {
         if (millis() - iwrap_time_ref > 5000) {
@@ -475,6 +294,113 @@ void loop() {
     }
 }
 
+/* ============================================================================
+ * IWRAP RESPONSE AND EVENT HANDLER IMPLEMENTATIONS
+ * ========================================================================= */
+
+void my_iwrap_rsp_call(uint8_t link_id) {
+    iwrap_pending_calls++;
+    iwrap_pending_call_link_id = link_id;
+    iwrap_autocall_index = (iwrap_autocall_index + 1) % iwrap_pairings;
+    iwrap_state = IWRAP_STATE_PENDING_CALL;
+}
+
+void my_iwrap_rsp_list_count(uint8_t num_of_connections) {
+    iwrap_active_connections = num_of_connections;
+}
+
+void my_iwrap_rsp_list_result(uint8_t link_id, const char *mode, uint16_t blocksize, uint32_t elapsed_time, uint16_t local_msc, uint16_t remote_msc, const iwrap_address_t *addr, uint16_t channel, uint8_t direction, uint8_t powermode, uint8_t role, uint8_t crypt, uint16_t buffer, uint8_t eretx) {
+    add_mapped_connection(link_id, addr, mode, channel);
+}
+
+void my_iwrap_rsp_set(uint8_t category, const char *option, const char *value) {
+    if (category == IWRAP_SET_CATEGORY_BT) {
+        if (strncmp((char *)option, "BDADDR", 6) == 0) {
+            iwrap_address_t local_mac;
+            iwrap_hexstrtobin((char *)value, 0, local_mac.address, 0);
+            char *local_mac_str = (char *)malloc(18);
+            if (local_mac_str) {
+                iwrap_bintohexstr(local_mac.address, 6, &local_mac_str, ':', 1);
+                serial_out(F(":: Module MAC is "));
+                serial_out(local_mac_str);
+                serial_out(F("\n"));
+                free(local_mac_str);
+            }
+        } else if (strncmp((char *)option, "NAME", 4) == 0) {
+            serial_out(F(":: Friendly name is "));
+            serial_out(value);
+            serial_out(F("\n"));
+        } else if (strncmp((char *)option, "PAIR", 4) == 0) {
+            iwrap_address_t remote_mac;
+            iwrap_hexstrtobin((char *)value, 0, remote_mac.address, 0);
+            
+            // make sure we allocate memory for the connection map entry
+            if (iwrap_connection_map[iwrap_pairings] == 0) {
+                iwrap_connection_map[iwrap_pairings] = (iwrap_connection_t *)malloc(sizeof(iwrap_connection_t));
+            }
+            memset(iwrap_connection_map[iwrap_pairings], 0xFF, sizeof(iwrap_connection_t)); // 0xFF is "no link ID"
+            memcpy(&(iwrap_connection_map[iwrap_pairings] -> mac), &remote_mac, sizeof(iwrap_address_t));
+            iwrap_connection_map[iwrap_pairings] -> active_links = 0;
+            iwrap_pairings++;
+            
+            char *remote_mac_str = (char *)malloc(18);
+            if (remote_mac_str) {
+                iwrap_bintohexstr(remote_mac.address, 6, &remote_mac_str, ':', 1);
+                serial_out(F(":: Pairing (MAC="));
+                serial_out(remote_mac_str);
+                serial_out(F(", key="));
+                serial_out(value + 18);
+                serial_out(F(")\n"));
+                free(remote_mac_str);
+            }
+        }
+    }
+}
+
+void my_iwrap_evt_connect(uint8_t link_id, const char *type, uint16_t target, const iwrap_address_t *address) {
+    if (iwrap_pending_call_link_id == link_id) {
+        if (iwrap_pending_calls) iwrap_pending_calls--;
+        if (iwrap_state == IWRAP_STATE_PENDING_CALL) iwrap_state = IWRAP_STATE_IDLE;
+        iwrap_pending_call_link_id = 0xFF;
+    }
+    iwrap_active_connections++;
+    add_mapped_connection(link_id, address, type, target);
+    print_connection_map();
+}
+
+void my_iwrap_evt_no_carrier(uint8_t link_id, uint16_t error_code, const char *message) {
+    if (iwrap_pending_call_link_id == link_id) {
+        if (iwrap_pending_calls) iwrap_pending_calls--;
+        if (iwrap_state == IWRAP_STATE_PENDING_CALL) iwrap_state = IWRAP_STATE_IDLE;
+        iwrap_pending_call_link_id = 0xFF;
+    }
+    if (remove_mapped_connection(link_id) != 0xFF) {
+        // only update and reprint if the connection was already mapped
+        // (i.e. not already closed or a failed outgoing connection attempt)
+        if (iwrap_active_connections) iwrap_active_connections--;
+        print_connection_map();
+    }
+}
+
+void my_iwrap_evt_pair(const iwrap_address_t *address, uint8_t key_type, const uint8_t *link_key) {
+    // request pair list again (could be a new pair, or updated pair, or new + overwritten pair)
+    iwrap_send_command("SET BT PAIR", iwrap_mode);
+    iwrap_state = IWRAP_STATE_PENDING_SET;
+}
+
+void my_iwrap_evt_ready() {
+    iwrap_state = IWRAP_STATE_UNKNOWN;
+}
+
+void my_iwrap_evt_ring(uint8_t link_id, const iwrap_address_t *address, uint8_t channel, const char *profile) {
+    add_mapped_connection(link_id, address, profile, channel);
+    print_connection_map();
+}
+
+/* ============================================================================
+ * GENERAL HELPER FUNCTIONS
+ * ========================================================================= */
+
 uint8_t find_pairing_from_mac(const iwrap_address_t *mac) {
     uint8_t i;
     for (i = 0; i < iwrap_pairings; i++) {
@@ -489,7 +415,7 @@ uint8_t find_pairing_from_link_id(uint8_t link_id) {
     // necessary). This means it is contingent on the structure keeping this memory
     // arrangement, where the last set of whatever is contained there is always the
     // set of link IDs.
-
+    
     uint8_t i, j, *idptr;
     for (i = 0; i < iwrap_pairings; i++) {
         idptr = &(iwrap_connection_map[i] -> link_a2dp1);
@@ -558,7 +484,7 @@ uint8_t remove_mapped_connection(uint8_t link_id) {
         if (iwrap_connection_map[i] -> link_iap == link_id) { iwrap_connection_map[i] -> link_iap = 0xFF; break; }
         if (iwrap_connection_map[i] -> link_spp == link_id) { iwrap_connection_map[i] -> link_spp = 0xFF; break; }
     }
-
+    
     // check to make sure we found the link ID in the map
     if (i < iwrap_pairings) {
         // updated connected device count and overall active link count for this device
@@ -568,7 +494,7 @@ uint8_t remove_mapped_connection(uint8_t link_id) {
         }
         return i;
     }
-
+    
     // not found, return 0xFF
     return 0xFF;
 }
@@ -577,7 +503,7 @@ uint8_t remove_mapped_connection(uint8_t link_id) {
  * PLATFORM-SPECIFIC HELPER FUNCTIONS
  * ========================================================================= */
 
-
+#if defined(PLATFORM_ARDUINO_UNO)
     int serial_out(const char *str) {
         // debug output to host goes through hardware serial
         return Serial.print(str);
@@ -588,10 +514,23 @@ uint8_t remove_mapped_connection(uint8_t link_id) {
     }
     int iwrap_out(int len, unsigned char *data) {
         // iWRAP output to module goes through software serial
+        return mySerial.write(data, len);
+    }
+#elif defined(PLATFORM_TEENSY2)
+    int serial_out(const char *str) {
+        // debug output to host goes through Serial (USB)
+        return Serial.print(str);
+    }
+    int serial_out(const __FlashStringHelper *str) {
+        // debug output to host goes through Serial (USB)
+        return Serial.print(str);
+    }
+    int iwrap_out(int len, unsigned char *data) {
+        // iWRAP output to module goes through Serial1 (hardware UART)
         return Serial1.write(data, len);
     }
-
-
+#endif
+    
 void print_connection_map() {
     char s[100];
     serial_out(F("==============================================================================\n"));
@@ -656,15 +595,5 @@ void process_demo_choice(char b) {
     } else if (b == '4') {
         serial_out("=> (4) Setting page mode to 0 (undiscoverable and unconnectable)\n\n");
         iwrap_send_command("SET BT PAGEMODE 0", iwrap_mode);
-    } else if (b =='5') {
-        iwrap_send_command("AVRCP PDU 31 1 2", IWRAP_MODE_MUX);
-    } else if (b =='6') {
-        iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);
-    } else if (b =='7') {
-        iwrap_send_command("AVRCP PDU 20 1 2", IWRAP_MODE_MUX);
-    } else if (b =='8') {
-        iwrap_send_command("AVRCP PDU 31 1", IWRAP_MODE_MUX);
-    } else if (b =='9') {
-        iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);
     }
 }
