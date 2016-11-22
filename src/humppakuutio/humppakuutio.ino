@@ -172,6 +172,8 @@ uint8_t readCalData(void)
 
 void my_iwrap_evt_a2dp_streaming_start(uint8_t link_id) {
   Serial.println("!! streaming start");
+  paused=false;
+  drawPlayPause(false);
   requestSongInfo();
   #ifdef LCD
   if (screen != PLAY) drawPlayMenu();
@@ -180,6 +182,8 @@ void my_iwrap_evt_a2dp_streaming_start(uint8_t link_id) {
 
 void my_iwrap_evt_a2dp_streaming_stop(uint8_t link_id) {
   Serial.println("!! streaming stop");
+  paused=true;
+  drawPlayPause(false);
 }
 
 void my_iwrap_evt_no_carrier(uint8_t link_id,uint16_t error_code, const char *message) {
@@ -289,12 +293,14 @@ void drawButtonBg(unsigned int left, bool pressed) {
 }
 
 void drawPlayPause(bool pressed) {
+  if(screen == PLAY){
   drawButtonBg(117, pressed);
-  if (paused) {
-    lcd.fillRect(141, 170, 15, 40, drawcolor[BG_COLOR]);
-    lcd.fillRect(162, 170, 15, 40, drawcolor[BG_COLOR]);
-  } else {
-    lcd.fillTriangle(145, 170, 145, 210, 175, 190, drawcolor[BG_COLOR]);
+    if (!paused) {
+      lcd.fillRect(141, 170, 15, 40, drawcolor[BG_COLOR]);
+      lcd.fillRect(162, 170, 15, 40, drawcolor[BG_COLOR]);
+    } else {
+      lcd.fillTriangle(145, 170, 145, 210, 175, 190, drawcolor[BG_COLOR]);
+    }
   }
 }
 
@@ -310,10 +316,10 @@ void drawPreviousButton(bool pressed) {
   lcd.fillRect(41, 170, 10, 40, drawcolor[BG_COLOR]);
 }
 
-void drawMenu(bool pressed, int items){
+void drawSetupMenu(bool pressed, int items){
   lcd.fillScreen(drawcolor[BG_COLOR]);
   for(int i=0;i<items;i++){
-    lcd.fillRect(10,10+i*50,300,40,drawcolor[BUTTON_BG]);
+    lcd.fillRect(10,10+i*60,300,50,drawcolor[BUTTON_BG]);
   }
   screen=SETUP;
 }
@@ -383,7 +389,7 @@ void loop2() {
             state = "Pause";
             iwrap_send_command("AVRCP PAUSE", IWRAP_MODE_MUX);
           }
-          paused = !paused;
+          //paused = !paused;
           pressedButton = 1;
           drawPlayPause(true);
         } else if (x >= 215) {
