@@ -34,6 +34,7 @@ bool paused = false;
 ScrollingText *text;
 // SoftwareSerial Serial1(10, 2);
 unsigned long textChanged = 0;
+unsigned long lastIntro = 0;
 
 uint16_t drawcolor[] = {
   RGB( 15, 15, 15), //bg
@@ -52,6 +53,12 @@ uint16_t drawcolor[] = {
 #define WHITE (4)
 #define BUTTON_BG (5)
 #define BUTTON_PRESSED_BG (6)
+
+int screen=0;
+
+#define INTRO (0)
+#define PLAY (1)
+#define SETUP (2)
 
 #define LCD_WIDTH (320)
 #define LCD_HEIGHT (240)
@@ -132,7 +139,7 @@ void writeCalData(void)
   uint8_t *ptr;
 
   EEPROM.write(addr++, 0xAA);
-  
+
   ptr = (uint8_t*)&lcd.tp_matrix;
   for(i=0; i < sizeof(CAL_MATRIX); i++)
   {
@@ -165,17 +172,24 @@ uint8_t readCalData(void)
 
 void my_iwrap_evt_a2dp_streaming_start(uint8_t link_id) {
   Serial.println("!! streaming start");
+  requestSongInfo();
+  #ifdef LCD
+  if (screen != PLAY) drawPlayMenu();
+  #endif
 }
 
 void my_iwrap_evt_a2dp_streaming_stop(uint8_t link_id) {
   Serial.println("!! streaming stop");
 }
 
+void my_iwrap_evt_no_carrier(uint8_t link_id,uint16_t error_code, const char *message) {
+  Serial.println("Disconnected!");
+  if(millis()-lastIntro > 500)drawIntro();
+}
+
 void my_iwrap_evt_track_changed() {
   Serial.println("!! track changed");
-  iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);  // request track change
-  iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);  // request title
-  iwrap_send_command("AVRCP PDU 20 1 2", IWRAP_MODE_MUX);  // request artist
+  requestSongInfo();
 }
 
 void my_iwrap_evt_title_received(const char *rawTitle) {
@@ -207,7 +221,7 @@ void my_iwrap_evt_artist_received(const char *rawArtist) {
 
   digitalWrite(MODULE_RESET_PIN, LOW);
   pinMode(MODULE_RESET_PIN, OUTPUT);
-  
+
   //lcd.begin();
   //lcd.led(100);
   // lcd.touchRead();
@@ -226,7 +240,7 @@ void my_iwrap_evt_artist_received(const char *rawArtist) {
   text->setText("0 to 100 / The Catch Up - Drake");
   text->setPosition(10, 10);
   text->setColor(drawcolor[WHITE]);
-  text->setBackgroundColor(drawcolor[BG_COLOR]); 
+  text->setBackgroundColor(drawcolor[BG_COLOR]);
 }*/
 
 void setup() {
@@ -254,10 +268,11 @@ void setup() {
     writeCalData(); //write data to EEPROM
   }
 
-  lcd.fillScreen(drawcolor[BG_COLOR]);
+  /*lcd.fillScreen(drawcolor[BG_COLOR]);
   drawPlayPause(false);
   drawNextButton(false);
-  drawPreviousButton(false);
+  drawPreviousButton(false);*/
+  drawIntro();
   #endif
 
   iwrap_evt_a2dp_streaming_start = my_iwrap_evt_a2dp_streaming_start;
@@ -265,6 +280,7 @@ void setup() {
   iwrap_evt_track_changed = my_iwrap_evt_track_changed;
   iwrap_evt_title_received = my_iwrap_evt_title_received;
   iwrap_evt_artist_received = my_iwrap_evt_artist_received;
+  iwrap_evt_no_carrier = my_iwrap_evt_no_carrier;
 }
 
 void drawButtonBg(unsigned int left, bool pressed) {
@@ -294,15 +310,51 @@ void drawPreviousButton(bool pressed) {
   lcd.fillRect(41, 170, 10, 40, drawcolor[BG_COLOR]);
 }
 
-void loop2() {
-  lcd.touchRead();
-  // text->update();
-  if(global_title != prev_title && millis() - textChanged > 50) {
+void drawMenu(bool pressed, int items){
+  lcd.fillScreen(drawcolor[BG_COLOR]);
+  for(int i=0;i<items;i++){
+    lcd.fillRect(10,10+i*50,300,40,drawcolor[BUTTON_BG]);
+  }
+  screen=SETUP;
+}
+
+void drawIntro(){
+  lcd.fillScreen(drawcolor[BG_COLOR]);
+  lcd.drawText(20, 60, "HUMPPA", drawcolor[GREEN], drawcolor[BG_COLOR], 6);
+  lcd.drawText(20, 120, "KUUTIO", drawcolor[GREEN], drawcolor[BG_COLOR], 6);
+  screen=INTRO;
+  lastIntro = millis();
+}
+
+void drawPlayMenu(){
+  screen=PLAY;
+  lcd.fillScreen(drawcolor[BG_COLOR]);
+  drawPlayPause(false);
+  drawNextButton(false);
+  drawPreviousButton(false);
+  drawArtistTitle();
+
+}
+
+void drawArtistTitle(){
+  if(global_title != prev_title && millis() - textChanged > 150 && screen==PLAY) {
     lcd.fillRect(0, 0, 320, 60, drawcolor[BG_COLOR]);
     lcd.drawText(20, 20, global_title, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
     lcd.drawText(20, 40, global_artist, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
     prev_title = global_title;
   }
+}
+
+void requestSongInfo(){
+  iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);  // request track change
+  iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);  // request title
+  iwrap_send_command("AVRCP PDU 20 1 2", IWRAP_MODE_MUX);  // request artist
+}
+
+void loop2() {
+  lcd.touchRead();
+  // text->update();
+  drawArtistTitle();
 
   static int pressedButton = -1;
   if (lcd.touchZ()) {
@@ -657,7 +709,8 @@ void process_demo_choice(char b) {
         serial_out("=> (4) Setting page mode to 0 (undiscoverable and unconnectable)\n\n");
         iwrap_send_command("SET BT PAGEMODE 0", iwrap_mode);
     } else if (b =='5') {
-        iwrap_send_command("AVRCP PDU 31 1 2", IWRAP_MODE_MUX);
+        drawIntro();
+        //drawMenu(false,3);
     } else if (b =='6') {
         iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);
     } else if (b =='7') {
