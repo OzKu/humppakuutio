@@ -25,13 +25,15 @@
 #include <Arduino.h>
 // #include <SoftwareSerial.h>
 #include "iWRAP.h"
-
+#include "SimpleTimer.h"
 #include "ScrollingText.h"
+
 
 MI0283QT9 lcd;  //MI0283QT9 Adapter v1
 bool touching = false;
 bool paused = false;
 ScrollingText *text;
+SimpleTimer timer;
 // SoftwareSerial Serial1(10, 2);
 unsigned long textChanged = 0;
 unsigned long lastIntro = 0;
@@ -84,9 +86,9 @@ int last_screen=0;
 
 #define IWRAP_MAX_PAIRINGS          16
 
-String global_title = "Title";
+String global_title = "";
 String prev_title = " ";
-String global_artist = "Artist";
+String global_artist = "";
 String prev_artist = " ";
 
 // connection map structure
@@ -178,9 +180,10 @@ uint8_t readCalData(void)
 
 void my_iwrap_evt_a2dp_streaming_start(uint8_t link_id) {
   Serial.println("!! streaming start");
-  paused=false;
-  drawPlayPause(false);
-  requestSongInfo();
+  // paused=false;
+  // drawPlayPause(false);
+  // requestSongInfo();
+  timer.setTimeout(100, requestSongInfo);
   #ifdef LCD
   if (screen != PLAY) drawPlayMenu();
   #endif
@@ -188,8 +191,8 @@ void my_iwrap_evt_a2dp_streaming_start(uint8_t link_id) {
 
 void my_iwrap_evt_a2dp_streaming_stop(uint8_t link_id) {
   Serial.println("!! streaming stop");
-  paused=true;
-  drawPlayPause(false);
+  // paused=true;
+  // drawPlayPause(false);
 }
 
 void my_iwrap_evt_no_carrier(uint8_t link_id,uint16_t error_code, const char *message) {
@@ -202,10 +205,30 @@ void my_iwrap_evt_track_changed() {
   requestSongInfo();
 }
 
+void my_iwrap_evt_paused() {
+  Serial.println("!! PAUSE!!!!!!");
+  paused=true;
+  drawPlayPause(false);
+  iwrap_send_command("AVRCP PDU 31 1 1", IWRAP_MODE_MUX); // request play pause
+}
+
+void my_iwrap_evt_playing() {
+  Serial.println("!! PLAY!!!!!!");
+  paused=false;
+  drawPlayPause(false);
+  iwrap_send_command("AVRCP PDU 31 1 1", IWRAP_MODE_MUX); // request play pause
+}
+
 void my_iwrap_evt_title_received(const char *rawTitle) {
   String title = String(rawTitle);
   title = title.substring(48, title.length() - 3);
   global_title = title;
+  global_title.replace("ä", "a");
+  global_title.replace("Ä", "A");
+  global_title.replace("ö", "o");
+  global_title.replace("Ö", "O");
+  global_title.replace("å", "a");
+  global_title.replace("Å", "A");
   Serial.println("title: " + title);
   textChanged = millis();
 }
@@ -216,6 +239,12 @@ void my_iwrap_evt_artist_received(const char *rawArtist) {
   Serial.println("artisti makssaaaaa: '" + artist + "'");
   textChanged = millis();
   global_artist = artist;
+  global_artist.replace("ä", "a");
+  global_artist.replace("Ä", "A");
+  global_artist.replace("ö", "o");
+  global_artist.replace("Ö", "O");
+  global_artist.replace("å", "a");
+  global_artist.replace("Å", "A");
 }
 
 /*void setup() {
@@ -260,6 +289,8 @@ void setup() {
   digitalWrite(MODULE_RESET_PIN, LOW);
   pinMode(MODULE_RESET_PIN, OUTPUT);
 
+  timer.setInterval(5000, requestSongInfo);
+
   // assign transport/debug output
   iwrap_output = iwrap_out;
   #ifdef IWRAP_DEBUG
@@ -284,6 +315,8 @@ void setup() {
   iwrap_evt_a2dp_streaming_start = my_iwrap_evt_a2dp_streaming_start;
   iwrap_evt_a2dp_streaming_stop = my_iwrap_evt_a2dp_streaming_stop;
   iwrap_evt_track_changed = my_iwrap_evt_track_changed;
+  iwrap_evt_paused = my_iwrap_evt_paused;
+  iwrap_evt_playing = my_iwrap_evt_playing;
   iwrap_evt_title_received = my_iwrap_evt_title_received;
   iwrap_evt_artist_received = my_iwrap_evt_artist_received;
   iwrap_evt_no_carrier = my_iwrap_evt_no_carrier;
@@ -378,6 +411,7 @@ void requestSongInfo(){
   iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);  // request track change
   iwrap_send_command("AVRCP PDU 20 1 1", IWRAP_MODE_MUX);  // request title
   iwrap_send_command("AVRCP PDU 20 1 2", IWRAP_MODE_MUX);  // request artist
+  iwrap_send_command("AVRCP PDU 31 1 1", IWRAP_MODE_MUX);  // request play pause
 }
 
 void loop2() {
@@ -534,6 +568,8 @@ void loop() {
   loop2();
   #endif
 
+  timer.run();
+
     uint16_t result;
 
     // manage iWRAP state machine
@@ -586,7 +622,7 @@ void loop() {
             // idle
             if (iwrap_pairings && iwrap_autocall_target > iwrap_connected_devices && !iwrap_pending_calls
                                && (!iwrap_autocall_last_time || (millis() - iwrap_autocall_last_time) >= iwrap_autocall_delay_ms)) {
-                //char cmd[] = "CALL AA:BB:CC:DD:EE:FF 19 A2DP";      // A2DP
+                char cmd[] = "CALL AA:BB:CC:DD:EE:FF 19 A2DP";      // A2DP
                 //char cmd[] = "CALL AA:BB:CC:DD:EE:FF 17 AVRCP";     // AVRCP
                 //char cmd[] = "CALL AA:BB:CC:DD:EE:FF 111F HFP";     // HFP
                 //char cmd[] = "CALL AA:BB:CC:DD:EE:FF 111E HFP-AG";  // HFP-AG
@@ -594,7 +630,7 @@ void loop() {
                 //char cmd[] = "CALL AA:BB:CC:DD:EE:FF 1112 HSP";     // HSP
                 //char cmd[] = "CALL AA:BB:CC:DD:EE:FF 1108 HSP-AG";  // HSP-AG
                 //char cmd[] = "CALL AA:BB:CC:DD:EE:FF * IAP";        // IAP
-                char cmd[] = "CALL AA:BB:CC:DD:EE:FF 1101 RFCOMM";  // SPP
+                // char cmd[] = "CALL AA:BB:CC:DD:EE:FF 1101 RFCOMM";  // SPP
                 char *cptr = cmd + 5;
 
                 // find first unconnected device
@@ -830,5 +866,7 @@ void process_demo_choice(char b) {
         iwrap_send_command("AVRCP PDU 31 1", IWRAP_MODE_MUX);
     } else if (b =='9') {
         iwrap_send_command("AVRCP PDU 31 2", IWRAP_MODE_MUX);
+    } else if (b == 'a') {
+      iwrap_send_command("AVRCP PDU 31 1 1", IWRAP_MODE_MUX);
     }
 }

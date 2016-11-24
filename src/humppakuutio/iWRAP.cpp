@@ -290,6 +290,14 @@ uint8_t iwrap_parse(uint8_t b, uint8_t mode) {
               if (iwrap_evt_title_received) {
                   iwrap_evt_title_received((char *)iwrap_tptr);
               }
+            } else if (strncmp((char *)iwrap_tptr, "AVRCP REGISTER_NOTIFICATION_RSP CHANGED PLAYBACK_STATUS_CHANGED PAUSED", 70) == 0) {
+              if (iwrap_evt_paused) {
+                iwrap_evt_paused();
+              }
+            } else if (strncmp((char *)iwrap_tptr, "AVRCP REGISTER_NOTIFICATION_RSP CHANGED PLAYBACK_STATUS_CHANGED PLAYING", 71) == 0) {
+              if (iwrap_evt_playing) {
+                iwrap_evt_playing();
+              }
             } else if (strncmp((char *)iwrap_tptr, "AVRCP REGISTER_NOTIFICATION_RSP CHANGED TRACK_CHANGED", 53) == 0) {
               if (iwrap_evt_track_changed) {
                 iwrap_evt_track_changed();
@@ -1018,6 +1026,8 @@ int (*iwrap_output)(int length, unsigned char *data);
 void (*iwrap_evt_track_changed)();
 void (*iwrap_evt_title_received)(const char *title);
 void (*iwrap_evt_artist_received)(const char *artist);
+void (*iwrap_evt_paused)();
+void (*iwrap_evt_playing)();
 
 
 

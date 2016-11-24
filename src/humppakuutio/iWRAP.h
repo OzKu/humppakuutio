@@ -283,6 +283,8 @@ extern int (*iwrap_output)(int length, unsigned char *data);
 extern void (*iwrap_evt_track_changed)();
 extern void (*iwrap_evt_title_received)(const char *title);
 extern void (*iwrap_evt_artist_received)(const char *artist);
+extern void (*iwrap_evt_paused)();
+extern void (*iwrap_evt_playing)();
 
 #ifdef IWRAP_INCLUDE_EVT_AUDIO_ROUTE
     extern void (*iwrap_evt_audio_route)(uint8_t link_id, uint8_t type, uint8_t channels);
