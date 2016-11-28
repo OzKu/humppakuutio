@@ -7,6 +7,7 @@ ScrollingText::ScrollingText(MI0283QT9 lcd) {
 
 void ScrollingText::setText(String text) {
   this->text = text;
+  this->startIndex = -1;
 }
 
 void ScrollingText::setPosition(unsigned short x, unsigned short y) {
@@ -30,7 +31,7 @@ void ScrollingText::update() {
     while (displayedText.length() < this->displayChars) {
       displayedText += " ";
     }
-    lcd.drawText(this->x, this->y, displayedText, this->color, this->backgroundColor, 2);
+    lcd.drawText(this->x, this->y, displayedText, this->color, this->backgroundColor, 1);
     this->lastUpdate = now;
   }
 }

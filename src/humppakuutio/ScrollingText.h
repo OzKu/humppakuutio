@@ -8,10 +8,10 @@ private:
   String text;
   unsigned short x = 0;
   unsigned short y = 0;
-  unsigned interval = 250;
+  unsigned interval = 1000;
   unsigned long lastUpdate;
   unsigned startIndex = 0;
-  unsigned displayChars = 19;
+  unsigned displayChars = 18;
   MI0283QT9 lcd;
   int color;
   int backgroundColor;

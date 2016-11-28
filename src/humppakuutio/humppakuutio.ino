@@ -32,7 +32,8 @@
 MI0283QT9 lcd;  //MI0283QT9 Adapter v1
 bool touching = false;
 bool paused = false;
-ScrollingText *text;
+ScrollingText *titleText;
+ScrollingText *artistText;
 SimpleTimer timer;
 // SoftwareSerial Serial1(10, 2);
 unsigned long textChanged = 0;
@@ -237,6 +238,10 @@ void my_iwrap_evt_title_received(const char *rawTitle) {
   global_title.replace("Ä", AA);
   global_title.replace("Å", BB);
   global_title.replace("Ö", CC);
+  global_title.replace("’", "'");
+
+  titleText->setText(global_title);
+  
   Serial.println("title: " + global_title);
   textChanged = millis();
 }
@@ -261,6 +266,9 @@ void my_iwrap_evt_artist_received(const char *rawArtist) {
   global_artist.replace("Ä", AA);
   global_artist.replace("Å", BB);
   global_artist.replace("Ö", CC);
+  global_artist.replace("’", "'");
+
+  artistText->setText(global_artist);
 }
 
 /*void setup() {
@@ -304,6 +312,18 @@ void setup() {
 
   digitalWrite(MODULE_RESET_PIN, LOW);
   pinMode(MODULE_RESET_PIN, OUTPUT);
+
+  titleText = new ScrollingText(lcd);
+  titleText->setText("");
+  titleText->setPosition(20, 20);
+  titleText->setColor(drawcolor[WHITE]);
+  titleText->setBackgroundColor(drawcolor[BG_COLOR]);
+
+  artistText = new ScrollingText(lcd);
+  artistText->setText("");
+  artistText->setPosition(20, 50);
+  artistText->setColor(drawcolor[WHITE]);
+  artistText->setBackgroundColor(drawcolor[BG_COLOR]);
 
   timer.setInterval(5000, requestSongInfo);
 
@@ -432,8 +452,11 @@ void requestSongInfo(){
 
 void loop2() {
   lcd.touchRead();
-  // text->update();
-  drawArtistTitle();
+  if (screen == PLAY) {
+    titleText->update();
+    artistText->update();
+  }
+  // drawArtistTitle();
 
   static int pressedButton = -1;
   if (lcd.touchZ()) {
