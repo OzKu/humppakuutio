@@ -26,7 +26,11 @@ void ScrollingText::setBackgroundColor(int color) {
 void ScrollingText::update() {
   unsigned long now = millis();
   if (now - this->lastUpdate >= this->interval) {
-    this->startIndex = (this->startIndex + 1) % this->text.length();
+    if (this->text.length() > this->displayChars) {
+      this->startIndex = (this->startIndex + 1) % this->text.length();
+    } else {
+      this->startIndex = 0;
+    }
     String displayedText = this->text.substring(this->startIndex, this->startIndex + this->displayChars);
     while (displayedText.length() < this->displayChars) {
       displayedText += " ";
