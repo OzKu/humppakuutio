@@ -223,13 +223,21 @@ void my_iwrap_evt_title_received(const char *rawTitle) {
   String title = String(rawTitle);
   title = title.substring(48, title.length() - 3);
   global_title = title;
-  global_title.replace("ä", "a");
-  global_title.replace("Ä", "A");
-  global_title.replace("ö", "o");
-  global_title.replace("Ö", "O");
-  global_title.replace("å", "a");
-  global_title.replace("Å", "A");
-  Serial.println("title: " + title);
+
+  const char aa[] = { 0x1A, 0x0 };
+  const char bb[] = { 0x1B, 0x0 };
+  const char cc[] = { 0x1C, 0x0 };
+  const char AA[] = { 0x1D, 0x0 };
+  const char BB[] = { 0x1E, 0x0 };
+  const char CC[] = { 0x1F, 0x0 };
+  
+  global_title.replace("ä", aa);
+  global_title.replace("å", bb);
+  global_title.replace("ö", cc);
+  global_title.replace("Ä", AA);
+  global_title.replace("Å", BB);
+  global_title.replace("Ö", CC);
+  Serial.println("title: " + global_title);
   textChanged = millis();
 }
 
@@ -239,12 +247,20 @@ void my_iwrap_evt_artist_received(const char *rawArtist) {
   Serial.println("artisti makssaaaaa: '" + artist + "'");
   textChanged = millis();
   global_artist = artist;
-  global_artist.replace("ä", "a");
-  global_artist.replace("Ä", "A");
-  global_artist.replace("ö", "o");
-  global_artist.replace("Ö", "O");
-  global_artist.replace("å", "a");
-  global_artist.replace("Å", "A");
+  
+  const char aa[] = { 0x1A, 0x0 };
+  const char bb[] = { 0x1B, 0x0 };
+  const char cc[] = { 0x1C, 0x0 };
+  const char AA[] = { 0x1D, 0x0 };
+  const char BB[] = { 0x1E, 0x0 };
+  const char CC[] = { 0x1F, 0x0 };
+  
+  global_artist.replace("ä", aa);
+  global_artist.replace("å", bb);
+  global_artist.replace("ö", cc);
+  global_artist.replace("Ä", AA);
+  global_artist.replace("Å", BB);
+  global_artist.replace("Ö", CC);
 }
 
 /*void setup() {
@@ -380,8 +396,8 @@ void drawSetupButton(unsigned int top, boolean pressed){
 
 void drawIntro(){
   lcd.fillScreen(drawcolor[BG_COLOR]);
-  lcd.drawText(20, 60, "HUMPPA", drawcolor[GREEN], drawcolor[BG_COLOR], 6);
-  lcd.drawText(20, 120, "KUUTIO", drawcolor[GREEN], drawcolor[BG_COLOR], 6);
+  lcd.drawText(20, 60, "HUMPPA", drawcolor[GREEN], drawcolor[BG_COLOR], 3);
+  lcd.drawText(20, 120, "KUUTIO", drawcolor[GREEN], drawcolor[BG_COLOR], 3);
   last_screen=screen;
   screen=INTRO;
   lastIntro = millis();
@@ -400,9 +416,9 @@ void drawPlayMenu(){
 
 void drawArtistTitle(){
   if(global_title != prev_title && millis() - textChanged > 150 && screen==PLAY) {
-    lcd.fillRect(0, 0, 320, 60, drawcolor[BG_COLOR]);
+    lcd.fillRect(0, 0, 320, 120, drawcolor[BG_COLOR]);
     lcd.drawText(20, 20, global_title, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
-    lcd.drawText(20, 40, global_artist, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
+    lcd.drawText(20, 50, global_artist, drawcolor[WHITE], drawcolor[BG_COLOR], 1);
     prev_title = global_title;
   }
 }

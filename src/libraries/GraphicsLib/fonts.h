@@ -14,19 +14,20 @@
 //#define FONT_5X12
 //#define FONT_6X8
 //#define FONT_6X10
-//#define FONT_7X12
-#define FONT_8X8
+// #define FONT_7X12
+//#define FONT_8X8
 //#define FONT_8X12
 //#define FONT_8X14
 //#define FONT_10X16
 //#define FONT_12X16
 //#define FONT_12X20
-//#define FONT_16X26
+#define FONT_16X26
 
 //if defined char range 0x20-0x7F otherwise 0x20-0xFF
-#define FONT_END7F
+// #define FONT_END7F
 
-#define FONT_START (0x20) //first character
+//#define FONT_START (0x1D) //first character
+#define FONT_START (0x20 - 0x6) //first character
 
 #if defined(FONT_4X6)
 # define FONT_WIDTH   (4)
