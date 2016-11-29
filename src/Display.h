@@ -2,15 +2,6 @@
 
 #include <MI0283QT9.h>
 
-#define BG_COLOR (0)
-#define RED (1)
-#define GREEN (2)
-#define BLUE (3)
-#define WHITE (4)
-#define BUTTON_BG (5)
-#define BUTTON_PRESSED_BG (6)
-#define BUTTON_ENABLED (7)
-
 #define LCD_WIDTH (320)
 #define LCD_HEIGHT (240)
 #define BUTTON_HEIGHT (60)
@@ -29,10 +20,10 @@ public:
   MI0283QT9 getLcd();
   int getScreen();
   void drawButtonBg(unsigned int left, bool pressed);
-  void drawPlayPause(bool paused, bool pressed);
+  void drawPlayPause(bool pressed);
   void drawNextButton(bool pressed);
   void drawPreviousButton(bool pressed);
-  void drawSetupButton(unsigned int top, bool pressed, unsigned int pageMode, uint8_t iwrap_autocall_target);
+  void drawSetupButton(unsigned int top, bool pressed);
   void drawSetupMenu(int items);
   void drawIntro();
   void drawPlayMenu();
@@ -41,8 +32,11 @@ public:
   void (*onPreviousClick)();
   void (*onPlayPauseClick)();
   void (*onNextClick)();
+  void (*onMenuOptionClick)(unsigned int); // Params: option index (0, 1, ...)
 private:
   MI0283QT9 lcd;
   int screen;
   int lastScreen;
+  bool touching = false;
+  unsigned long lastTouched = 0;
 };

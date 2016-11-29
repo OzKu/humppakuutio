@@ -28,10 +28,9 @@
 #include "SimpleTimer.h"
 #include "ScrollingText.h"
 #include "Display.h"
-#include "colors.h"
+#include "Colors.h"
+#include "State.h"
 
-bool touching = false;
-bool paused = false;
 ScrollingText *titleText;
 ScrollingText *artistText;
 SimpleTimer timer;
@@ -39,10 +38,6 @@ Display display;
 
 // SoftwareSerial Serial1(10, 2);
 unsigned long textChanged = 0;
-unsigned long lastIntro = 0;
-unsigned long lastTouched = 0;
-
-unsigned int pageMode = -1;
 
 // IWRAP
 #define IWRAP_STATE_IDLE            0
@@ -85,7 +80,6 @@ uint8_t iwrap_pending_calls = 0;
 uint8_t iwrap_pending_call_link_id = 0xFF;
 uint8_t iwrap_connected_devices = 0;
 uint8_t iwrap_active_connections = 0;
-uint8_t iwrap_autocall_target = 0;
 uint16_t iwrap_autocall_delay_ms = 10000;
 uint32_t iwrap_autocall_last_time = 0;
 uint8_t iwrap_autocall_index = 0;
@@ -131,7 +125,7 @@ void my_iwrap_evt_a2dp_streaming_stop(uint8_t link_id) {
 
 void my_iwrap_evt_no_carrier(uint8_t link_id,uint16_t error_code, const char *message) {
   Serial.println("Disconnected!");
-  if(millis()-lastIntro > 500) display.drawIntro();
+  if(millis()-State::getInstance()->lastIntro > 500) display.drawIntro();
 }
 
 void my_iwrap_evt_track_changed() {
@@ -141,15 +135,15 @@ void my_iwrap_evt_track_changed() {
 
 void my_iwrap_evt_paused() {
   Serial.println("!! PAUSE!!!!!!");
-  paused=true;
-  display.drawPlayPause(paused, false);
+  State::getInstance()->paused = true;
+  display.drawPlayPause(false);
   iwrap_send_command("AVRCP PDU 31 1 1", IWRAP_MODE_MUX); // request play pause
 }
 
 void my_iwrap_evt_playing() {
   Serial.println("!! PLAY!!!!!!");
-  paused=false;
-  display.drawPlayPause(paused, false);
+  State::getInstance()->paused = false;
+  display.drawPlayPause(false);
   iwrap_send_command("AVRCP PDU 31 1 1", IWRAP_MODE_MUX); // request play pause
 }
 
@@ -202,6 +196,56 @@ void my_iwrap_evt_artist_received(const char *rawArtist) {
   artistText->setText(artist);
 }
 
+void onPreviousClick() {
+  Serial.println("Previous");
+  display.drawPreviousButton(true);
+  iwrap_send_command("AVRCP BACKWARD", IWRAP_MODE_MUX);
+}
+
+void onPlayPauseClick() {
+  if (State::getInstance()->paused) {
+    Serial.println("Play");
+    iwrap_send_command("AVRCP PLAY", IWRAP_MODE_MUX);
+  } else {
+    Serial.println("Pause");
+    iwrap_send_command("AVRCP PAUSE", IWRAP_MODE_MUX);
+  }
+  display.drawPlayPause(false);
+  State::getInstance()->paused = !State::getInstance()->paused;
+}
+
+void onNextClick() {
+  Serial.println("Next");
+  iwrap_send_command("AVRCP FORWARD", IWRAP_MODE_MUX);
+  display.drawNextButton(true);
+}
+
+void onMenuOptionClick(unsigned int optionIndex) {
+  switch (optionIndex) {
+    case 0:
+      iwrap_send_command("SET BT PAGEMODE 3", iwrap_mode);
+      State::getInstance()->pageMode = 0;
+      break;
+    case 1:
+      iwrap_send_command("SET BT PAGEMODE 2", iwrap_mode);
+      State::getInstance()->pageMode = 1;
+      break;
+    case 2:
+      iwrap_send_command("SET BT PAGEMODE 0", iwrap_mode);
+      State::getInstance()->pageMode = 2;
+      break;
+    case 3:
+      if (State::getInstance()->iwrap_autocall_target) {
+          Serial.println("=> (1) Disabling round-robin autocall algorithm\n\n");
+          State::getInstance()->iwrap_autocall_target = 0;
+      } else {
+          Serial.println("=> (1) Enabling round-robin autocall algorithm\n\n");
+          State::getInstance()->iwrap_autocall_target = 1;
+      }
+      break;
+  }
+}
+
 void setup() {
   Serial.begin(HOST_BAUD);
   Serial1.begin(IWRAP_BAUD);
@@ -212,14 +256,14 @@ void setup() {
   titleText = new ScrollingText(display.getLcd());
   titleText->setText("");
   titleText->setPosition(20, 20);
-  titleText->setColor(drawcolor[WHITE]);
-  titleText->setBackgroundColor(drawcolor[BG_COLOR]);
+  titleText->setColor(COLOR_WHITE);
+  titleText->setBackgroundColor(COLOR_BG);
 
   artistText = new ScrollingText(display.getLcd());
   artistText->setText("");
   artistText->setPosition(20, 50);
-  artistText->setColor(drawcolor[WHITE]);
-  artistText->setBackgroundColor(drawcolor[BG_COLOR]);
+  artistText->setColor(COLOR_WHITE);
+  artistText->setBackgroundColor(COLOR_BG);
 
   timer.setInterval(5000, requestSongInfo);
 
@@ -234,6 +278,9 @@ void setup() {
   #ifdef LCD
   display.setupLcd();
   display.drawIntro();
+  display.onPreviousClick = onPreviousClick;
+  display.onPlayPauseClick = onPlayPauseClick;
+  display.onNextClick = onNextClick;
   #endif
 
   iwrap_evt_a2dp_streaming_start = my_iwrap_evt_a2dp_streaming_start;
@@ -308,7 +355,7 @@ void loop() {
             }
         } else if (iwrap_initialized) {
             // idle
-            if (iwrap_pairings && iwrap_autocall_target > iwrap_connected_devices && !iwrap_pending_calls
+            if (iwrap_pairings && State::getInstance()->iwrap_autocall_target > iwrap_connected_devices && !iwrap_pending_calls
                                && (!iwrap_autocall_last_time || (millis() - iwrap_autocall_last_time) >= iwrap_autocall_delay_ms)) {
                 char cmd[] = "CALL AA:BB:CC:DD:EE:FF 19 A2DP";      // A2DP
                 //char cmd[] = "CALL AA:BB:CC:DD:EE:FF 17 AVRCP";     // AVRCP
@@ -527,12 +574,12 @@ void process_demo_choice(char b) {
         digitalWrite(MODULE_RESET_PIN, LOW);
         iwrap_pending_commands = 0; // normally handled by the parser, but this is a hard reset
     } else if (b == '1') {
-        if (iwrap_autocall_target) {
+        if (State::getInstance()->iwrap_autocall_target) {
             serial_out("=> (1) Disabling round-robin autocall algorithm\n\n");
-            iwrap_autocall_target = 0;
+            State::getInstance()->iwrap_autocall_target = 0;
         } else {
             serial_out("=> (1) Enabling round-robin autocall algorithm\n\n");
-            iwrap_autocall_target = 1;
+            State::getInstance()->iwrap_autocall_target = 1;
         }
     } else if (b == '2') {
         serial_out("=> (2) Setting page mode to 3 (discoverable and connectable)\n\n");
