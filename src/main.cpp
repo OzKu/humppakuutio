@@ -23,13 +23,13 @@
 #include <GraphicsLib.h>
 #include <MI0283QT9.h>
 #include <SPI.h>
+#include <SimpleTimer.h>
 
 #include "Colors.h"
 #include "ConnectionManager.h"
 #include "Display.h"
 #include "iWRAP.h"
 #include "ScrollingText.h"
-#include "SimpleTimer.h"
 #include "State.h"
 
 SimpleTimer timer;

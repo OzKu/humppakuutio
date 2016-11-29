@@ -1,4 +1,5 @@
-#pragma once
+#ifndef DISPLAY_H
+#define DISPLAY_H
 
 #include <MI0283QT9.h>
 
@@ -40,3 +41,5 @@ private:
   bool touching = false;
   unsigned long lastTouched = 0;
 };
+
+#endif

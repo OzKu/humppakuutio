@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SCROLLING_TEXT_H
+#define SCROLLING_TEXT_H
 
 #include <Arduino.h>
 #include <MI0283QT9.h>
@@ -15,7 +16,7 @@ private:
   MI0283QT9 lcd;
   int color;
   int backgroundColor;
-  
+
 public:
   ScrollingText(MI0283QT9 lcd);
   void setText(String text);
@@ -25,3 +26,4 @@ public:
   void setBackgroundColor(int color);
 };
 
+#endif
