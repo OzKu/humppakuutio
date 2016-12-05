@@ -1,4 +1,4 @@
 (fp_lib_table
-  (lib (name kicad_footprints)(type KiCad)(uri C:\Users\ozkar\Desktop\poppimASiina-master\hardware\kicad_footprints.pretty)(options "")(descr ""))
-  (lib (name footprints)(type KiCad)(uri C:\Users\ozkar\Desktop\poppimASiina-master\hardware\footprints.pretty)(options "")(descr ""))
+  (lib (name kicad_footprints)(type KiCad)(uri C:\Users\212392069\Documents\humppakuutio\schema\lib\poppimASiina-master\hardware\kicad_footprints.pretty)(options "")(descr ""))
+  (lib (name footprints)(type KiCad)(uri C:\Users\212392069\Documents\humppakuutio\schema\lib\poppimASiina-master\hardware\footprints.pretty)(options "")(descr ""))
 )

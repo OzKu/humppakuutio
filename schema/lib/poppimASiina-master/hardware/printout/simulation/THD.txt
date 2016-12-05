@@ -1,0 +1,37 @@
+##THD at 1KHz, 1k load, 1 V output amplitude (2Vp-p, 0.7V RMS), 4.2 V VBAT
+
+N-Period=1
+Fourier components of V(out)
+DC component:0.000121906
+
+Harmonic	Frequency	 Fourier 	Normalized	 Phase  	Normalized
+ Number 	  [Hz]   	Component	 Component	[degree]	Phase [deg]
+    1   	1.000e+03	1.000e+00	1.000e+00	  179.95°	    0.00°
+    2   	2.000e+03	2.451e-06	2.451e-06	   -0.87°	 -180.82°
+    3   	3.000e+03	1.660e-04	1.660e-04	   88.67°	  -91.28°
+    4   	4.000e+03	1.916e-06	1.916e-06	   -1.66°	 -181.61°
+    5   	5.000e+03	6.516e-05	6.517e-05	   87.92°	  -92.03°
+    6   	6.000e+03	1.104e-06	1.104e-06	   -2.33°	 -182.28°
+    7   	7.000e+03	2.193e-05	2.193e-05	   87.20°	  -92.75°
+    8   	8.000e+03	3.355e-07	3.355e-07	   -2.99°	 -182.94°
+    9   	9.000e+03	1.119e-06	1.119e-06	   83.35°	  -96.60°
+Total Harmonic Distortion: 0.017970%(0.018081%)
+
+##THD at 1KHz, 32 load, 0.6 V output amplitude (1.2Vp-p, 0.4V RMS), 4.2 V VBAT
+N-Period=1
+Fourier components of V(out)
+DC component:0.000236302
+
+Harmonic	Frequency	 Fourier 	Normalized	 Phase  	Normalized
+ Number 	  [Hz]   	Component	 Component	[degree]	Phase [deg]
+    1   	1.000e+03	5.999e-01	1.000e+00	 -179.81°	    0.00°
+    2   	2.000e+03	4.998e-06	8.331e-06	    0.45°	  180.25°
+    3   	3.000e+03	1.577e-03	2.629e-03	   87.70°	  267.51°
+    4   	4.000e+03	4.581e-06	7.636e-06	   -1.73°	  178.08°
+    5   	5.000e+03	1.118e-03	1.863e-03	   85.24°	  265.04°
+    6   	6.000e+03	4.684e-06	7.808e-06	   -4.31°	  175.49°
+    7   	7.000e+03	8.859e-04	1.477e-03	   82.61°	  262.42°
+    8   	8.000e+03	4.838e-06	8.064e-06	   -7.09°	  172.72°
+    9   	9.000e+03	7.390e-04	1.232e-03	   79.83°	  259.64°
+Total Harmonic Distortion: 0.375232%(0.446700%)
+

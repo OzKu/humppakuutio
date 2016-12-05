@@ -1,4 +1,4 @@
-update=1.12.2016 22.07.47
+update=5.12.2016 18:20:52
 version=1
 last_client=kicad
 [pcbnew]
@@ -22,9 +22,12 @@ BoardOutlineThickness=0.100000000000
 ModuleOutlineThickness=0.150000000000
 [general]
 version=1
+[cvpcb]
+version=1
+NetIExt=net
 [eeschema]
 version=1
-LibDir=
+LibDir=lib
 [eeschema/libraries]
 LibName1=power
 LibName2=device
@@ -56,6 +59,3 @@ LibName27=atmel
 LibName28=contrib
 LibName29=valves
 LibName30=C:/Users/ozkar/Desktop/poppimASiina-master/hardware/lib/wt32
-[cvpcb]
-version=1
-NetIExt=net
