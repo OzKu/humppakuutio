@@ -1,4 +1,4 @@
-update=5.12.2016 18:20:52
+update=Tue 13 Dec 2016 03:57:52 PM EET
 version=1
 last_client=kicad
 [pcbnew]
@@ -27,7 +27,7 @@ version=1
 NetIExt=net
 [eeschema]
 version=1
-LibDir=lib
+LibDir=lib;lib/poppimASiina-master/hardware/footprints.pretty
 [eeschema/libraries]
 LibName1=power
 LibName2=device
@@ -58,4 +58,6 @@ LibName26=opto
 LibName27=atmel
 LibName28=contrib
 LibName29=valves
-LibName30=C:/Users/ozkar/Desktop/poppimASiina-master/hardware/lib/wt32
+LibName30=lib/poppimASiina-master/hardware/lib/wt32
+LibName31=lib/Arduino_Shield_Modules_for_KiCad_V3/arduino_shieldsNCL
+LibName32=lib/Arduino_Shield_Modules_for_KiCad/arduino_shields
